@@ -27,6 +27,10 @@ Steps:
 - Smile =)
 
 ```go
-	h := NewHeimdall(dbConnectionString, "migration_history", "./../migrations", true)
+	import (
+        heimdall "github.com/morpheuszero/go-heimdall/pkg"
+    )
+
+	h := heimdall.NewHeimdall(dbConnectionString, "migration_history", "./migrations", true)
 	err := h.RunMigrations()
 ```
