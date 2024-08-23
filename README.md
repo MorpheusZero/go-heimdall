@@ -28,7 +28,7 @@ Steps:
 
 ```go
 	import (
-        heimdall "github.com/morpheuszero/go-heimdall/pkg"
+        heimdall "github.com/morpheuszero/go-heimdall"
     )
 
 	h := heimdall.NewHeimdall(dbConnectionString, "migration_history", "./migrations", true)

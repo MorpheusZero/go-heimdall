@@ -1,4 +1,4 @@
-package database
+package heimdall
 
 import (
 	"context"
