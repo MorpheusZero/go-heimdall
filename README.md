@@ -2,7 +2,10 @@
 
 A small database migration tool in Golang for Postgres that follows KISS (Keep It Simple Stupid).
 
-Heimdall will handle very basic DB migrations for Postgres using minimal dependencies and very basic use cases.
+## Uses
+
+- Heimdall will handle very basic DB migrations for Postgres using minimal dependencies and very basic use cases.
+- This tool is NOT a binary and is meant to be used as a dependency in your own project. You can create your own binary though if you so choose.
 
 ## Install
 
