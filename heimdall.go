@@ -1,3 +1,7 @@
+// Package heimdall implements utility functions for managing database
+// migrations for an application.
+//
+// The heimdall package only works with postgres databases currently.
 package heimdall
 
 import (
@@ -9,26 +13,27 @@ import (
 	"path/filepath"
 )
 
+// Heimdall is The main instance that will handle running the database migrations.
 type Heimdall struct {
-	migrationTableName          string
-	migrationFilesDirectoryPath string
-	db                          *pgx.Conn
-	verbose                     bool
+	migrationTableName          string    // The name of the table that Heimdall will create in your database to store information about the migration history
+	migrationFilesDirectoryPath string    // The relative path of the directory that holds all of your .sql files that should be run.
+	db                          *pgx.Conn // A reference to the active database connection
+	verbose                     bool      // If TRUE, will output more logging information about the migrations being ran
 }
 
-type MigrationFile struct {
-	Filename string
-	SQL      string
+// migrationFile represents a SQL migration file in your specified migrations directory.
+type migrationFile struct {
+	Filename string // The name of the file on disk
+	SQL      string // The actual SQL content that will be run on the server
 }
 
-// Creates a new Heimdall instance.
-//
-// Handles creating the database connection and setting some values that we will use.
+// NewHeimdall Creates a new Heimdall instance.
 func NewHeimdall(connectionString string, migrationTableName string, migrationFilesDirectoryPath string, verbose bool) *Heimdall {
 	db := newDatabaseConnection(connectionString)
 	return &Heimdall{db: db, migrationTableName: migrationTableName, migrationFilesDirectoryPath: migrationFilesDirectoryPath, verbose: verbose}
 }
 
+// newDatabaseConnection Handles creating the database connection and setting some values that we will use.
 func newDatabaseConnection(connectionString string) *pgx.Conn {
 	conn, err := pgx.Connect(context.Background(), connectionString)
 	if err != nil {
@@ -37,32 +42,38 @@ func newDatabaseConnection(connectionString string) *pgx.Conn {
 	return conn
 }
 
-// Run the migrations
+// RunMigrations Runs the entire migration process.
+// This is the only public function that is exposed by Heimdall for running everything.
 func (h *Heimdall) RunMigrations() error {
 	err := initializeMigrationHistoryTable(h.db, h.migrationTableName)
 	if err != nil {
+		log.Println(err)
 		log.Fatalln("an error occurred when attempting to create the migrations history table")
 		return err
 	}
 	migrationFiles, err := getAllMigrationFiles(h.migrationFilesDirectoryPath)
 	if err != nil {
+		log.Println(err)
 		log.Fatalln("an error occurred when attempting to retrieve all migration files from the disk")
 		return err
 	}
 	migrationsInDB, err := getMigrationsInDB(h.db, h.migrationTableName)
 	if err != nil {
+		log.Println(err)
 		log.Fatalln("an error occurred when attempting to retrieve all migration history from the db")
 		return err
 	}
 	migrationsToRun := compareMigrationsToRun(migrationFiles, migrationsInDB)
 	err = performMigrations(migrationsToRun, h.db, h.migrationTableName, h.verbose)
 	if err != nil {
+		log.Println(err)
 		log.Fatalln("an error occurred when attempting to perform the migrations")
 		return err
 	}
 	return nil
 }
 
+// initializeMigrationHistoryTable will attempt to create the migrations history table if it does not exist.
 func initializeMigrationHistoryTable(db *pgx.Conn, migrationTableName string) error {
 	sql := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS "%s" (
@@ -78,13 +89,14 @@ func initializeMigrationHistoryTable(db *pgx.Conn, migrationTableName string) er
 	return nil
 }
 
-func getAllMigrationFiles(migrationFilesDirectoryPath string) ([]MigrationFile, error) {
+// getAllMigrationFiles will read the given directory path to load all .sql files and read their contents.
+func getAllMigrationFiles(migrationFilesDirectoryPath string) ([]migrationFile, error) {
 	files, err := os.ReadDir(migrationFilesDirectoryPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var migrationFiles []MigrationFile
+	var migrationFiles []migrationFile
 
 	for _, file := range files {
 		if filepath.Ext(file.Name()) == ".sql" {
@@ -96,7 +108,7 @@ func getAllMigrationFiles(migrationFilesDirectoryPath string) ([]MigrationFile, 
 				continue
 			}
 
-			migrationFiles = append(migrationFiles, *(&MigrationFile{
+			migrationFiles = append(migrationFiles, *(&migrationFile{
 				Filename: file.Name(),
 				SQL:      string(content),
 			}))
@@ -105,6 +117,7 @@ func getAllMigrationFiles(migrationFilesDirectoryPath string) ([]MigrationFile, 
 	return migrationFiles, nil
 }
 
+// getMigrationsInDB will look in the db to see which .sql files have already been stored.
 func getMigrationsInDB(db *pgx.Conn, migrationTableName string) ([]string, error) {
 	sql := fmt.Sprintf(`
 		SELECT filename 
@@ -129,8 +142,10 @@ func getMigrationsInDB(db *pgx.Conn, migrationTableName string) ([]string, error
 	return filenames, nil
 }
 
-func compareMigrationsToRun(migrationFiles []MigrationFile, migrationsInDB []string) []MigrationFile {
-	var migrationsToRun []MigrationFile
+// compareMigrationsToRun will compare the list of files to the migrations found in the db to see which files need to be run.
+// Returns only the filtered diff slice.
+func compareMigrationsToRun(migrationFiles []migrationFile, migrationsInDB []string) []migrationFile {
+	var migrationsToRun []migrationFile
 
 	for _, migration := range migrationFiles {
 		found := false
@@ -146,7 +161,9 @@ func compareMigrationsToRun(migrationFiles []MigrationFile, migrationsInDB []str
 	return migrationsToRun
 }
 
-func performMigrations(migrations []MigrationFile, db *pgx.Conn, migrationTableName string, verbose bool) error {
+// performMigrations will actually take the files that need to be run and execute them on the db server
+// Additionally, it will update the migration history table with the list of files so they won't be processed on the next run.
+func performMigrations(migrations []migrationFile, db *pgx.Conn, migrationTableName string, verbose bool) error {
 	for _, migration := range migrations {
 
 		if verbose {
