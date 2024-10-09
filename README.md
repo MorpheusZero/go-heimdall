@@ -10,7 +10,7 @@ A small database migration tool written in Golang for Postgres that follows [KIS
 - Heimdall will perform each migration in a transaction--if the transaction fails, the SQL will be rolled back and the app will panic.
 - You have a few configuration options available to you for naming your migrations table as you see fit and also the directory where you store your migrations files.
 - This tool is **NOT** a binary and is meant to be used as a dependency in your own project. You can create your own binary though if you so choose by forking this project.
-   - You should create a command in your own application that wil invoke the code as shown in the examples below.
+  - You should create a command in your own application that wil invoke the code as shown in the examples below.
 
 ## Install
 

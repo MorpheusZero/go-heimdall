@@ -7,10 +7,11 @@ package heimdall
 import (
 	"context"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Heimdall is The main instance that will handle running the database migrations.
@@ -170,8 +171,15 @@ func performMigrations(migrations []migrationFile, db *pgx.Conn, migrationTableN
 			fmt.Println(migration.SQL)
 		}
 
-		_, err := db.Exec(context.Background(), migration.SQL)
+		// Begin a transaction
+		tx, err := db.BeginTx(context.Background(), pgx.TxOptions{})
 		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(context.Background(), migration.SQL)
+		if err != nil {
+			tx.Rollback(context.Background())
 			return err
 		} else {
 			sql := fmt.Sprintf(`
@@ -180,10 +188,17 @@ func performMigrations(migrations []migrationFile, db *pgx.Conn, migrationTableN
 				) 
 				VALUES ($1)
 		`, migrationTableName)
-			_, err = db.Exec(context.Background(), sql, migration.Filename)
+			_, err = tx.Exec(context.Background(), sql, migration.Filename)
 			if err != nil {
+				tx.Rollback(context.Background())
 				return err
 			}
+		}
+
+		// Commit the transaction
+		err = tx.Commit(context.Background())
+		if err != nil {
+			return err
 		}
 	}
 	return nil
