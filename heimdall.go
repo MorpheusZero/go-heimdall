@@ -109,10 +109,10 @@ func getAllMigrationFiles(migrationFilesDirectoryPath string) ([]migrationFile, 
 				continue
 			}
 
-			migrationFiles = append(migrationFiles, *(&migrationFile{
+			migrationFiles = append(migrationFiles, migrationFile{
 				Filename: file.Name(),
 				SQL:      string(content),
-			}))
+			})
 		}
 	}
 	return migrationFiles, nil
