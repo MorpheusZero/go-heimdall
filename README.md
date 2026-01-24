@@ -15,32 +15,90 @@ A small database migration tool written in Golang for Postgres that follows [KIS
 ## Install
 
 ```shell
-go get -u github.com/morpheuszero/go-heimdall@v1.1.1
+go get -u github.com/morpheuszero/go-heimdall/v2@latest
 ```
 
 ## Usage
 
 Pre-reqs:
 
-- You must have a flat folder on disk somewhere with all of your .sql migration files in them. They will be loaded in order based on their filenames, as such, its recommended to name by date like `20240722_v1_a_short_description.sql`
+- You must have a flat folder on disk somewhere with all of your .sql migration files in them. They will be loaded in alphabetical order by filename, so it's recommended to name by date like `20240722_v1_a_short_description.sql`
 
 Steps:
 
-- Create a new Heimdall Instance with following parameters:
+- Create a Config with the following parameters:
   - Database Connection String
-  - Migration History Table Name
+  - Migration History Table Name (can be schema-qualified, e.g., "public.migration_history")
   - Migrations Directory that holds all of your .SQL files
   - VERBOSE = TRUE/FALSE (if true it will show the SQL being ran when the migrations run)
+- Create a new Heimdall instance with the config
 - Run the migrations
+- Close the connection when done
 - Smile =)
 
 ```go
-	import (
-        heimdall "github.com/morpheuszero/go-heimdall"
-    )
+import (
+	heimdall "github.com/morpheuszero/go-heimdall/v2"
+)
 
-	h := heimdall.NewHeimdall(dbConnectionString, "migration_history", "./migrations", true)
-	err := h.RunMigrations()
+config := heimdall.Config{
+	ConnectionString:            dbConnectionString,
+	MigrationTableName:          "migration_history",
+	MigrationFilesDirectoryPath: "./migrations",
+	Verbose:                     true,
+}
+
+h, err := heimdall.NewHeimdall(config)
+if err != nil {
+	log.Fatal(err)
+}
+defer h.Close()
+
+err = h.RunMigrations()
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+## Migrating from v1.x to v2.0
+
+Version 2.0 introduces breaking changes with improved error handling and API design:
+
+**Key Changes:**
+1. `NewHeimdall()` now takes a `Config` struct instead of multiple parameters and returns `(*Heimdall, error)`
+2. Added `Close()` method that should be called when done using Heimdall
+3. Removed `log.Fatal()` and `panic()` calls - all errors are now properly returned
+4. Migration files are explicitly sorted alphabetically
+5. Table name validation now supports schema-qualified names (e.g., "public.migrations")
+6. Duplicate migration files are now detected and cause an error
+7. Unreadable migration files now cause an error instead of being silently skipped
+
+**Migration Example:**
+
+v1.x code:
+```go
+h := heimdall.NewHeimdall(connStr, "migrations", "./sql", true)
+err := h.RunMigrations()
+```
+
+v2.0 code:
+```go
+config := heimdall.Config{
+    ConnectionString:            connStr,
+    MigrationTableName:          "migrations",
+    MigrationFilesDirectoryPath: "./sql",
+    Verbose:                     true,
+}
+h, err := heimdall.NewHeimdall(config)
+if err != nil {
+    log.Fatal(err)
+}
+defer h.Close()
+
+err = h.RunMigrations()
+if err != nil {
+    log.Fatal(err)
+}
 ```
 
 ## Developing Locally

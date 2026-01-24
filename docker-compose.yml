@@ -1,0 +1,11 @@
+name: heimdall-test
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: h-test
+    ports:
+      - "5432:5432"
