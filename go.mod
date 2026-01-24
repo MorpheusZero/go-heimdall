@@ -1,4 +1,4 @@
-module github.com/morpheuszero/go-heimdall
+module github.com/morpheuszero/go-heimdall/v2
 
 go 1.25.6
 

@@ -15,7 +15,7 @@ A small database migration tool written in Golang for Postgres that follows [KIS
 ## Install
 
 ```shell
-go get -u github.com/morpheuszero/go-heimdall@v2.0.0
+go get -u github.com/morpheuszero/go-heimdall/v2@v2.0.0
 ```
 
 ## Usage
@@ -38,7 +38,7 @@ Steps:
 
 ```go
 import (
-	heimdall "github.com/morpheuszero/go-heimdall"
+	heimdall "github.com/morpheuszero/go-heimdall/v2"
 )
 
 config := heimdall.HeimdallConfig{
