@@ -1,12 +1,12 @@
 # go-heimdall
 
-A small database migration tool written in Golang for Postgres that follows [KISS](https://en.wikipedia.org/wiki/KISS_principle).
+A small database migration tool written in Golang for Postgres & MySQL that follows [KISS](https://en.wikipedia.org/wiki/KISS_principle).
 
 ![Static Badge](https://img.shields.io/badge/pkg.go.dev-reference-blue?style=flat-square&logo=go&link=https%3A%2F%2Fpkg.go.dev%2Fgithub.com%2Fmorpheuszero%2Fgo-heimdall)
 
 ## Features
 
-- Heimdall will handle basic DB migrations for Postgres using minimal dependencies.
+- Heimdall will handle basic DB migrations for Postgres / MySQL using minimal dependencies.
 - Heimdall will perform each migration in a transaction--if the transaction fails, the SQL will be rolled back and the app will panic.
 - You have a few configuration options available to you for naming your migrations table as you see fit and also the directory where you store your migrations files.
 - This tool is **NOT** a binary and is meant to be used as a dependency in your own project. You can create your own binary though if you so choose by forking this project.
@@ -15,7 +15,7 @@ A small database migration tool written in Golang for Postgres that follows [KIS
 ## Install
 
 ```shell
-go get -u github.com/morpheuszero/go-heimdall/v2@v2.0.0
+go get -u github.com/morpheuszero/go-heimdall/v3
 ```
 
 ## Usage
@@ -38,7 +38,7 @@ Steps:
 
 ```go
 import (
-	heimdall "github.com/morpheuszero/go-heimdall/v2"
+	heimdall "github.com/morpheuszero/go-heimdall/v3"
 )
 
 config := heimdall.HeimdallConfig{
@@ -54,55 +54,21 @@ if err != nil {
 }
 defer h.Close()
 
-err = h.RunMigrations()
+err = h.RunPGMigrations()
 if err != nil {
 	log.Fatal(err)
 }
-```
 
-## Migrating from v1.x to v2.0
+// OR
 
-Version 2.0 introduces breaking changes with improved error handling and API design:
-
-**Key Changes:**
-1. `NewHeimdall()` now takes a `Config` struct instead of multiple parameters and returns `(*Heimdall, error)`
-2. Added `Close()` method that should be called when done using Heimdall
-3. Removed `log.Fatal()` and `panic()` calls - all errors are now properly returned
-4. Migration files are explicitly sorted alphabetically
-5. Table name validation now supports schema-qualified names (e.g., "public.migrations")
-6. Duplicate migration files are now detected and cause an error
-7. Unreadable migration files now cause an error instead of being silently skipped
-
-**Migration Example:**
-
-v1.x code:
-```go
-h := heimdall.NewHeimdall(connStr, "migrations", "./sql", true)
-err := h.RunMigrations()
-```
-
-v2.0 code:
-```go
-config := heimdall.HeimdallConfig{
-    ConnectionString:            connStr,
-    MigrationTableName:          "migrations",
-    MigrationFilesDirectoryPath: "./sql",
-    Verbose:                     true,
-}
-h, err := heimdall.NewHeimdall(config)
+err = h.RunMySQLMigrations()
 if err != nil {
-    log.Fatal(err)
-}
-defer h.Close()
-
-err = h.RunMigrations()
-if err != nil {
-    log.Fatal(err)
+	log.Fatal(err)
 }
 ```
 
 ## Developing Locally
 
 There is an included `.env.example` file here for loading your database connection for testing locally.
-In a real application, we don't load the ENV vars for you, and its expected for the users of the package
-to supply the connection string.
+
+In a real application, we don't load the ENV vars for you, and its expected for the users of the package to supply the connection string.

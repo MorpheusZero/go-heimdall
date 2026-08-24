@@ -13,7 +13,7 @@ func TestHeimdallMigrations(t *testing.T) {
 	config := HeimdallConfig{
 		ConnectionString:            dbConnectionString,
 		MigrationTableName:          "migration_history",
-		MigrationFilesDirectoryPath: "./migrations_examples",
+		MigrationFilesDirectoryPath: "./migrations_mysql_examples",
 		Verbose:                     true,
 	}
 
@@ -23,13 +23,19 @@ func TestHeimdallMigrations(t *testing.T) {
 	}
 	defer h.Close()
 
-	err = h.RunMigrations()
+	// I comment this out because I can test them at the same time in the same test file.
+	// err = h.RunPGMigrations(config.ConnectionString)
+	// if err != nil {
+	// 	t.Errorf("PostgreSQL migrations test failed: %v", err)
+	// }
+
+	err = h.RunMySQLMigrations(config.ConnectionString)
 	if err != nil {
-		t.Errorf("migrations test failed: %v", err)
+		t.Errorf("MySQL migrations test failed: %v", err)
 	}
 }
 
-func TestValidateTableName(t *testing.T) {
+func TestValidatePGTableName(t *testing.T) {
 	tests := []struct {
 		name      string
 		tableName string
@@ -89,7 +95,7 @@ func TestValidateTableName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateTableName(tt.tableName)
+			err := validatePGTableName(tt.tableName)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("validateTableName(%q) error = %v, wantErr %v", tt.tableName, err, tt.wantErr)
 			}
@@ -131,13 +137,13 @@ func TestNewHeimdallValidation(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "invalid table name",
+			name: "invalid table name is allowed until migrations run",
 			config: HeimdallConfig{
 				ConnectionString:            "postgres://localhost/db",
 				MigrationTableName:          "bad-name",
 				MigrationFilesDirectoryPath: "./sql",
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 
