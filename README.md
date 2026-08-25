@@ -12,7 +12,7 @@ A small PostgreSQL migration library for Go that follows [KISS](https://en.wikip
 
 ## Public Disclosure
 
-I originally wrote the first few versions of this library by hand **without** the use of AI. After I got it to a spot that I liked, for v4, I did use AI to help me identify bugs and offer suggestions on how to improve resilience and performance. This was all a labor of love and I used AI as a tool in helping me to generate some documentation and offer some aid with bug fixes. This tool has always been a personal tool that I use on my own projects for simplicity. If you find it useful in any capacity, feel free to use it, fork it, contribute, etc.
+I originally wrote the first few versions of this library by hand **without** the use of AI (back in 2024). After I got it to a spot that I liked, for v4, I did use AI to help me identify bugs and offer suggestions on how to improve resilience and performance. This was all a labor of love and I used AI as a tool in helping me to generate some documentation and offer some aid with bug fixes. This tool has always been a personal tool that I use on my own projects for simplicity. If you find it useful in any capacity, feel free to use it, fork it, contribute, etc.
 
 ## Features
 
