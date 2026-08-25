@@ -1,7 +1,7 @@
 // Package heimdall implements utility functions for managing database
 // migrations for an application.
 //
-// The heimdall package works with PostgresSQL and MySQL databases.
+// The heimdall package works with PostgresSQL databases.
 //
 // Example usage:
 //
@@ -22,16 +22,10 @@
 //	if err := h.RunPGMigrations(); err != nil {
 //		log.Fatal(err)
 //	}
-//
-//	// Run MySQL migrations
-//	if err := h.RunMySQLMigrations(); err != nil {
-//		log.Fatal(err)
-//	}
 package heimdall
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -41,7 +35,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -68,8 +61,7 @@ type HeimdallConfig struct {
 type Heimdall struct {
 	migrationTableName          string    // The name of the table that Heimdall will create in your database to store information about the migration history
 	migrationFilesDirectoryPath string    // The relative path of the directory that holds all of your .sql files that should be run.
-	pgDB                        *pgx.Conn // A reference to the active PostgreSQL database connection
-	mySQLDB                     *sql.DB   // A reference to the active MySQL database connection
+	db                          *pgx.Conn // A reference to the active PostgreSQL database connection
 	verbose                     bool      // If TRUE, will output more logging information about the migrations being ran
 }
 
@@ -94,9 +86,19 @@ func NewHeimdall(config HeimdallConfig) (*Heimdall, error) {
 		return nil, errors.New("migration files directory path cannot be empty")
 	}
 
+	// Validate table name format
+	if err := validatePGTableName(config.MigrationTableName); err != nil {
+		return nil, fmt.Errorf("invalid migration table name: %w", err)
+	}
+
+	// Create database connection
+	conn, err := pgx.Connect(context.Background(), config.ConnectionString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
 	return &Heimdall{
-		pgDB:                        nil,
-		mySQLDB:                     nil,
+		db:                          conn,
 		migrationTableName:          config.MigrationTableName,
 		migrationFilesDirectoryPath: config.MigrationFilesDirectoryPath,
 		verbose:                     config.Verbose,
@@ -105,11 +107,8 @@ func NewHeimdall(config HeimdallConfig) (*Heimdall, error) {
 
 // Close closes the database connection. Should be called when done using Heimdall.
 func (h *Heimdall) Close() error {
-	if h.pgDB != nil {
-		return h.pgDB.Close(context.Background())
-	}
-	if h.mySQLDB != nil {
-		return h.mySQLDB.Close()
+	if h.db != nil {
+		return h.db.Close(context.Background())
 	}
 	return nil
 }
@@ -145,53 +144,13 @@ func validatePGTableName(tableName string) error {
 	return nil
 }
 
-// validateMySQLTableName validates that a table name follows MySQL identifier rules.
-// Supports schema-qualified names (e.g., "schema.table").
-func validateMySQLTableName(tableName string) error {
-	if tableName == "" {
-		return errors.New("table name cannot be empty")
-	}
-
-	// Split by dot to handle schema-qualified names
-	parts := strings.Split(tableName, ".")
-	if len(parts) > 2 {
-		return errors.New("table name can have at most one schema qualifier (schema.table)")
-	}
-
-	// MySQL identifier pattern: starts with letter or underscore, followed by alphanumeric or underscore
-	identifierPattern := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
-
-	for _, part := range parts {
-		if len(part) == 0 {
-			return errors.New("empty identifier in table name")
-		}
-		// MySQL identifier pattern: starts with letter or underscore, followed by alphanumeric or underscore
-		if !identifierPattern.MatchString(part) {
-			return fmt.Errorf("identifier '%s' contains invalid characters (must start with letter/underscore, contain only alphanumeric and underscores)", part)
-		}
-	}
-
-	return nil
-}
-
 // RunMPGigrations runs the entire migration process for a PostgreSQL database.
 // It initializes the migration history table, reads migration files from disk,
 // determines which migrations need to be run, and executes them in transactions.
 // Returns an error if any step fails.
-func (h *Heimdall) RunPGMigrations(connectionString string) error {
-	// Validate table name format
-	if err := validatePGTableName(h.migrationTableName); err != nil {
-		return fmt.Errorf("invalid migration table name: %w", err)
-	}
+func (h *Heimdall) RunPGMigrations() error {
 
-	// Create database connection
-	conn, err := pgx.Connect(context.Background(), connectionString)
-	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-	h.pgDB = conn
-
-	if err := initializePGMigrationHistoryTable(h.pgDB, h.migrationTableName); err != nil {
+	if err := initializePGMigrationHistoryTable(h.db, h.migrationTableName); err != nil {
 		return fmt.Errorf("failed to initialize migration history table: %w", err)
 	}
 
@@ -200,7 +159,7 @@ func (h *Heimdall) RunPGMigrations(connectionString string) error {
 		return fmt.Errorf("failed to read migration files: %w", err)
 	}
 
-	migrationsInDB, err := getPGMigrationsInDB(h.pgDB, h.migrationTableName)
+	migrationsInDB, err := getPGMigrationsInDB(h.db, h.migrationTableName)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve migration history from database: %w", err)
 	}
@@ -218,81 +177,11 @@ func (h *Heimdall) RunPGMigrations(connectionString string) error {
 		log.Printf("Running %d migration(s)\n", len(migrationsToRun))
 	}
 
-	if err := performPGMigrations(migrationsToRun, h.pgDB, h.migrationTableName, h.verbose); err != nil {
+	if err := performPGMigrations(migrationsToRun, h.db, h.migrationTableName, h.verbose); err != nil {
 		return fmt.Errorf("failed to perform PostgreSQL migrations: %w", err)
 	}
 
 	return nil
-}
-
-// RunMySQLMigrations runs the entire migration process for a MySQL database.
-// It initializes the migration history table, reads migration files from disk,
-// determines which migrations need to be run, and executes them in transactions.
-// Returns an error if any step fails.
-func (h *Heimdall) RunMySQLMigrations(connectionString string) error {
-	// Validate table name format
-	if err := validateMySQLTableName(h.migrationTableName); err != nil {
-		return fmt.Errorf("invalid migration table name: %w", err)
-	}
-
-	conn, err := openMySQL(connectionString)
-	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-	h.mySQLDB = conn
-
-	if err := initializeMySQLMigrationHistoryTable(h.mySQLDB, h.migrationTableName); err != nil {
-		return fmt.Errorf("failed to initialize migration history table: %w", err)
-	}
-
-	migrationFiles, err := getAllMigrationFiles(h.migrationFilesDirectoryPath)
-	if err != nil {
-		return fmt.Errorf("failed to read migration files: %w", err)
-	}
-
-	migrationsInDB, err := getMySQLMigrationsInDB(h.mySQLDB, h.migrationTableName)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve migration history from database: %w", err)
-	}
-
-	migrationsToRun := compareMigrationsToRun(migrationFiles, migrationsInDB)
-
-	if len(migrationsToRun) == 0 {
-		if h.verbose {
-			log.Println("No new migrations to run")
-		}
-		return nil
-	}
-
-	if h.verbose {
-		log.Printf("Running %d migration(s)\n", len(migrationsToRun))
-	}
-
-	if err := performMySQLMigrations(migrationsToRun, h.mySQLDB, h.migrationTableName, h.verbose); err != nil {
-		return fmt.Errorf("failed to perform MySQL migrations: %w", err)
-	}
-
-	return nil
-}
-
-// openMySQL opens a MySQL/MariaDB connection. Migration files may contain multiple
-// statements (CREATE + INSERTs, etc.); the driver rejects that unless MultiStatements is on.
-func openMySQL(dsn string) (*sql.DB, error) {
-	cfg, err := mysql.ParseDSN(dsn)
-	if err != nil {
-		return nil, fmt.Errorf("invalid MySQL connection string: %w", err)
-	}
-	cfg.MultiStatements = true
-
-	db, err := sql.Open("mysql", cfg.FormatDSN())
-	if err != nil {
-		return nil, err
-	}
-	if err := db.PingContext(context.Background()); err != nil {
-		db.Close()
-		return nil, err
-	}
-	return db, nil
 }
 
 // initializePGMigrationHistoryTable will attempt to create the migrations history table if it does not exist.
@@ -305,22 +194,6 @@ func initializePGMigrationHistoryTable(db *pgx.Conn, migrationTableName string) 
 		);
 	`, migrationTableName)
 	_, err := db.Exec(context.Background(), sql)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// initializeMySQLMigrationHistoryTable will attempt to create the migrations history table if it does not exist.
-func initializeMySQLMigrationHistoryTable(db *sql.DB, migrationTableName string) error {
-	sql := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s (
-			id INT AUTO_INCREMENT PRIMARY KEY,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			filename VARCHAR(255)
-		);
-	`, migrationTableName)
-	_, err := db.Exec(sql)
 	if err != nil {
 		return err
 	}
@@ -404,37 +277,6 @@ func getPGMigrationsInDB(db *pgx.Conn, migrationTableName string) ([]string, err
 	return filenames, nil
 }
 
-// getMySQLMigrationsInDB retrieves the list of migration files that have already been executed.
-// Returns filenames in the order they were applied (sorted by created_at).
-func getMySQLMigrationsInDB(db *sql.DB, migrationTableName string) ([]string, error) {
-	sql := fmt.Sprintf(`
-		SELECT filename 
-		FROM %s
-		ORDER BY created_at ASC
-	`, migrationTableName)
-	rows, err := db.Query(sql)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var filenames []string
-
-	for rows.Next() {
-		var value string
-		if err := rows.Scan(&value); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
-		}
-		filenames = append(filenames, value)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
-	}
-
-	return filenames, nil
-}
-
 // compareMigrationsToRun will compare the list of files to the migrations found in the db to see which files need to be run.
 // Returns only the filtered diff slice.
 func compareMigrationsToRun(migrationFiles []migrationFile, migrationsInDB []string) []migrationFile {
@@ -493,55 +335,6 @@ func performPGMigrations(migrations []migrationFile, db *pgx.Conn, migrationTabl
 
 		// Commit the transaction
 		if err = tx.Commit(context.Background()); err != nil {
-			return fmt.Errorf("failed to commit transaction for migration '%s': %w", migration.Filename, err)
-		}
-
-		if verbose {
-			log.Printf("Successfully applied migration: %s\n", migration.Filename)
-		}
-	}
-	return nil
-}
-
-// performMySQLMigrations executes the provided migrations in individual transactions.
-// Each migration is run atomically: if it fails, the transaction is rolled back.
-// If any migration fails, the entire process stops and returns an error.
-func performMySQLMigrations(migrations []migrationFile, db *sql.DB, migrationTableName string, verbose bool) error {
-	for _, migration := range migrations {
-		if verbose {
-			log.Printf("Executing migration: %s\n", migration.Filename)
-			fmt.Println(migration.SQL)
-			fmt.Println("---")
-		}
-
-		// Begin a transaction for this migration
-		tx, err := db.BeginTx(context.Background(), nil)
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction for migration '%s': %w", migration.Filename, err)
-		}
-
-		// Execute the migration SQL
-		_, err = tx.ExecContext(context.Background(), migration.SQL)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to execute migration '%s': %w", migration.Filename, err)
-		}
-
-		// Record the migration in the history table
-		insertSQL := fmt.Sprintf(`
-			INSERT INTO %s (
-				filename
-			) 
-			VALUES (?)
-		`, migrationTableName)
-		_, err = tx.ExecContext(context.Background(), insertSQL, migration.Filename)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to record migration '%s' in history table: %w", migration.Filename, err)
-		}
-
-		// Commit the transaction
-		if err = tx.Commit(); err != nil {
 			return fmt.Errorf("failed to commit transaction for migration '%s': %w", migration.Filename, err)
 		}
 

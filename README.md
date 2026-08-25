@@ -1,12 +1,12 @@
 # go-heimdall
 
-A small database migration tool written in Golang for Postgres & MySQL that follows [KISS](https://en.wikipedia.org/wiki/KISS_principle).
+A small database migration tool written in Golang for Postgres that follows [KISS](https://en.wikipedia.org/wiki/KISS_principle).
 
 ![Static Badge](https://img.shields.io/badge/pkg.go.dev-reference-blue?style=flat-square&logo=go&link=https%3A%2F%2Fpkg.go.dev%2Fgithub.com%2Fmorpheuszero%2Fgo-heimdall)
 
 ## Features
 
-- Heimdall will handle basic DB migrations for Postgres / MySQL using minimal dependencies.
+- Heimdall will handle basic DB migrations for Postgres using minimal dependencies.
 - Heimdall will perform each migration in a transaction--if the transaction fails, the SQL will be rolled back and the app will panic.
 - You have a few configuration options available to you for naming your migrations table as you see fit and also the directory where you store your migrations files.
 - This tool is **NOT** a binary and is meant to be used as a dependency in your own project. You can create your own binary though if you so choose by forking this project.
@@ -15,7 +15,7 @@ A small database migration tool written in Golang for Postgres & MySQL that foll
 ## Install
 
 ```shell
-go get -u github.com/morpheuszero/go-heimdall/v3
+go get -u github.com/morpheuszero/go-heimdall/v4
 ```
 
 ## Usage
@@ -38,7 +38,7 @@ Steps:
 
 ```go
 import (
-	heimdall "github.com/morpheuszero/go-heimdall/v3"
+	heimdall "github.com/morpheuszero/go-heimdall/v4"
 )
 
 config := heimdall.HeimdallConfig{
@@ -55,13 +55,6 @@ if err != nil {
 defer h.Close()
 
 err = h.RunPGMigrations()
-if err != nil {
-	log.Fatal(err)
-}
-
-// OR
-
-err = h.RunMySQLMigrations()
 if err != nil {
 	log.Fatal(err)
 }

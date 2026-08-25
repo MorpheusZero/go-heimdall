@@ -1,4 +1,4 @@
-name: heimdall-test-postgres-mysql
+name: heimdall-test-postgres
 services:
   postgres:
     image: postgres:18-alpine
@@ -9,11 +9,3 @@ services:
       POSTGRES_DB: h-test
     ports:
       - "5432:5432"
-  mysql:
-    image: mariadb:12.3
-    container_name: mariadb
-    environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: h-test
-    ports:
-      - "3306:3306"

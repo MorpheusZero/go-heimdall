@@ -13,7 +13,7 @@ func TestHeimdallMigrations(t *testing.T) {
 	config := HeimdallConfig{
 		ConnectionString:            dbConnectionString,
 		MigrationTableName:          "migration_history",
-		MigrationFilesDirectoryPath: "./migrations_mysql_examples",
+		MigrationFilesDirectoryPath: "./migrations_examples",
 		Verbose:                     true,
 	}
 
@@ -23,15 +23,9 @@ func TestHeimdallMigrations(t *testing.T) {
 	}
 	defer h.Close()
 
-	// I comment this out because I can test them at the same time in the same test file.
-	// err = h.RunPGMigrations(config.ConnectionString)
-	// if err != nil {
-	// 	t.Errorf("PostgreSQL migrations test failed: %v", err)
-	// }
-
-	err = h.RunMySQLMigrations(config.ConnectionString)
+	err = h.RunPGMigrations()
 	if err != nil {
-		t.Errorf("MySQL migrations test failed: %v", err)
+		t.Errorf("PostgreSQL migrations test failed: %v", err)
 	}
 }
 
